@@ -130,7 +130,15 @@ void loop()
   Serial.print("\t");
   Serial.println(turn);
 
-  if (turn == 3){
+  if (turn == 1){
+    Serial.println("\n\nLEFT!\n\n");
+    left(50);
+  }
+  else if (turn == 2){
+    Serial.println("\n\nRIGHT!\n\n");
+    right(50);
+  }
+  else if (turn == 3){
     Serial.println("\n\nDOUBLE GREEN!\n\n");
     doublegreen();
   }

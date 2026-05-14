@@ -54,7 +54,6 @@ void back() {
 int target = 0;
 const int turn_range = 5;
 int targetSpeed = 60;
-int turndegree = 90;
 
 bool inRange(float angle, float low, float high) {
   if (low <= high) {
@@ -81,7 +80,7 @@ float lowtarget(float target) {
   return low;
 }
 
-void right() {
+void right(int turndegree) {
   tcaselect(imu);
   bno.getEvent(&event);
   tone(22, 200, 200);
@@ -91,6 +90,7 @@ void right() {
   float l_target = lowtarget(target);
 
   while (true) {
+    Serial.println("Right!");
     bno.getEvent(&event);
 
     Serial.print("BNO: ");
@@ -113,7 +113,7 @@ void right() {
   delay(500);
 }
 
-void left() {
+void left(int turndegree) {
   tcaselect(imu);
   bno.getEvent(&event);
   tone(22, 100, 200);
@@ -123,6 +123,7 @@ void left() {
   float l_target = lowtarget(target);
 
   while (true) {
+    Serial.println("Left!");
 
     bno.getEvent(&event);
 

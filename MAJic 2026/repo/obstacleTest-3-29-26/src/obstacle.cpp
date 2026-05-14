@@ -3,7 +3,7 @@
 VL53L0X tof;
 
 void obstacleAvoid() {
-    right();
+    right(90);
     tcaselect(side);
     while (tof.readRangeContinuousMillimeters() > 100){
         straight();
@@ -17,7 +17,7 @@ void obstacleAvoid() {
     straight();
     delay(1500);
 
-    left();
+    left(90);
 
     while (tof.readRangeContinuousMillimeters() > 100){
         straight();
@@ -31,13 +31,13 @@ void obstacleAvoid() {
     straight();
     delay(1500);
 
-    left();
+    left(90);
 
     while (tof.readRangeContinuousMillimeters() > 100){
         straight();
     }
 
-    right();
+    right(90);
 
     stopMotors();
 }

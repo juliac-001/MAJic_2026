@@ -148,6 +148,17 @@ void PID(vector<vector<Point>> contours, Mat img, int direction = 1)
 	}
 }
 
+void track(Point center)
+{
+	int cx = center.x;
+    int cy = center.y;
+
+    errors = targetValue - cx;
+    spdChange = errors * kp;
+    fleft = targetSpeed - spdChange;
+    fright = targetSpeed + spdChange;
+}
+
 void loop()
 {
 	char tx_buffer[20];
@@ -208,10 +219,13 @@ int greenSquare(Mat img) {
 	bool inmiddle = false;
     bool dinmiddle = false;
 	int func = 0;
+
+    Point right;
+    Point left;
 	
 	for (int i = 0; i < (int)greenSquares.size(); i++) {
 		func = 0;
-		if (contourArea(greenSquares[i]) < 500) {
+		if (contourArea(greenSquares[i]) < 1500) {
 			continue;
 		}
 		
@@ -219,9 +233,9 @@ int greenSquare(Mat img) {
 		
 		Point center(box.x+(box.width/2), box.y+(box.height/2));
 		Point above(box.x+(box.width/2), box.y-20);
-		Point right(box.x+(box.width) +20, box.y+(box.height/2));
+		right = Point(box.x+(box.width) +20, box.y+(box.height/2));
 		Point below(box.x+(box.width/2), box.y+(box.height)+20);
-		Point left(box.x-20, box.y+(box.height/2));
+		left = Point(box.x-20, box.y+(box.height/2));
 		
 		int abovecolor = thresh.at<unsigned char>(above);
 		int rightcolor = thresh.at<unsigned char>(right);
@@ -250,189 +264,39 @@ int greenSquare(Mat img) {
 			result = 0;
 		}
 		
-		if (center.y > 140 && center.y < 180) {
+		if (center.y > 60) {
 			inmiddle = true;
 		}
-        if (center.y > 70) {
+        if (center.y > 160) {
 			dinmiddle = true;
 		}
 	}
 		
-	if (leftcount && rightcount && inmiddle) {
+	if (leftcount && rightcount && dinmiddle) {
 		printf("doublegreen\n");
         result = 3;
-        loop();
-        
-        //stopMotors = true;
-        /*
-        int contourdiff = 0;
-        int orgContour = contourArea(*max_element(contours.begin(), contours.end(), contour_cmp));
-        vector<vector<Point>> newcontours;
-        vector<vector<Point>> newLeftcontours;
-        vector<vector<Point>> newRightcontours;
-
-        do{
-            Mat newimg = thresh_image_proccessing();
-            Mat newLeftimg = newimg(Rect(0, 0, 29, 149));
-            Mat newRightimg = newimg(Rect(290, 0, 29, 149));
-            findContours(newimg, newcontours, RETR_EXTERNAL, CHAIN_APPROX_SIMPLE);
-            findContours(newLeftimg, newLeftcontours, RETR_EXTERNAL, CHAIN_APPROX_SIMPLE);
-            findContours(newRightimg, newRightcontours, RETR_EXTERNAL, CHAIN_APPROX_SIMPLE);
-            //drawContours(newimg, newcontours, -1, Scalar(255, 0, 0), 3, LINE_8);
-            //imshow("doublegrimg", newimg);
-            //waitKey(1);
-            //PID(newcontours, newimg, -1);
-            fright = -targetSpeed;
-            fleft = -targetSpeed;
-            loop();
-
-            if (contours.size()) {
-                vector<Point> lineDiff = *max_element(newcontours.begin(), newcontours.end(), contour_cmp);
-                contourdiff = orgContour - contourArea(lineDiff);
-            }
-
-            printf("\nOriginal Contour: %d\nContour Difference: %d\n", orgContour, contourdiff);
-        }while(((int)newLeftcontours.size() >0)&& ((int)newRightcontours.size()>0));
-
-        printf("\n\n\n\n\n\n\n\n\n\n\n\n\nWE EXITED THE DOUBLE GR WHILE LOOP \n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n");
-        result = 3;
-        fleft = 0;
-        fright = 0;
-        loop();
-        result = 0;
-        /*
-        vector<vector<Point>> contourTopRight;
-        vector<vector<Point>> contourTopLeft;
-        int contourarea = 0;
-
-        do {
-            Mat newthreshimg = green_image_proccessing("topRight");
-            findContours(newthreshimg, contourTopRight, RETR_EXTERNAL, CHAIN_APPROX_SIMPLE);
-            drawContours(saveimg, contourTopRight, -1, Scalar(255, 0, 0), 3, LINE_8, noArray(), INT_MAX, Point(210,0));
-            imshow("RIGHT in do while", saveimg);
-            waitKey(1);
-            printf("%d", contourTopRight.size());
-            fleft = 30;
-            fright = -30;
-            loop();
-
-            if (contourTopRight.size()){
-                vector<Point> lineTopRight = *max_element(contourTopRight.begin(), contourTopRight.end(), contour_cmp);
-                contourarea = contourArea(lineTopRight);
-            }
-        } while(contourarea < (50*50/2));
-
-        /*
-        contourarea = 0;
-
-        do {
-            Mat newthreshimg = green_image_proccessing("topRight");
-            findContours(newthreshimg, contourTopRight, RETR_EXTERNAL, CHAIN_APPROX_SIMPLE);
-            drawContours(saveimg, contourTopRight, -1, Scalar(255, 0, 0), 3, LINE_8, noArray(), INT_MAX, Point(50,0));
-            imshow("RIGHT in do while", saveimg);
-            waitKey(1);
-            printf("%d", contourTopRight.size());
-            fleft = 30;
-            fright = -30;
-            loop();
-
-            if (contourTopRight.size()){
-                vector<Point> lineTopRight = *max_element(contourTopRight.begin(), contourTopRight.end(), contour_cmp);
-                contourarea = contourArea(lineTopRight);
-            }
-        } while(contourarea < (50*50/2));*/
-
-
-        /*fright = -targetSpeed;
-        fleft = targetSpeed;
-        loop();
-        this_thread::sleep_for(2s);*/
 	}
 	else if(leftcount && inmiddle) {
-		printf("left\n");
-		result = 2;
-        vector<vector<Point>> contourTopLeft;
-        vector<vector<Point>> contourTopRight;
-        int contourarea = 0;
-
-        do {
-            Mat newthreshimg = green_image_proccessing("topLeft");
-            findContours(newthreshimg, contourTopLeft, RETR_EXTERNAL, CHAIN_APPROX_SIMPLE);
-            drawContours(saveimg, contourTopLeft, -1, Scalar(255, 0, 0), 3, LINE_8, noArray(), INT_MAX, Point(50,0));
-            imshow("LEFT in do while", saveimg);
-            waitKey(1);
-            printf("%d", contourTopLeft.size());
-            fleft = -30;
-            fright = 30;
+        printf("left\n");
+        if(!dinmiddle){
+            fright = 50;
+            fleft = 50;
             loop();
-
-            if (contourTopLeft.size()){
-                vector<Point> lineTopLeft = *max_element(contourTopLeft.begin(), contourTopLeft.end(), contour_cmp);
-                contourarea = contourArea(lineTopLeft);
-            }
-        } while(contourarea < (50*50/2));
-
-        contourarea = 0;
-
-        do {
-            Mat newthreshimg = green_image_proccessing("topRight");
-            findContours(newthreshimg, contourTopRight, RETR_EXTERNAL, CHAIN_APPROX_SIMPLE);
-            drawContours(saveimg, contourTopRight, -1, Scalar(255, 0, 0), 3, LINE_8, noArray(), INT_MAX, Point(210,0));
-            imshow("RIGHT in do while", saveimg);
-            waitKey(1);
-            printf("%d", contourTopRight.size());
-            fleft = -30;
-            fright = 30;
-            loop();
-
-            if (contourTopRight.size()){
-                vector<Point> lineTopRight = *max_element(contourTopRight.begin(), contourTopRight.end(), contour_cmp);
-                contourarea = contourArea(lineTopRight);
-            }
-        } while(contourarea < (50*50/2));
+        }
+        else{
+            result = 1;
+        }
 	}
 	else if(rightcount && inmiddle) {
-		printf("right\n");
-		result = 1;
-        vector<vector<Point>> contourTopRight;
-        vector<vector<Point>> contourTopLeft;
-        int contourarea = 0;
-
-        do {
-            Mat newthreshimg = green_image_proccessing("topRight");
-            findContours(newthreshimg, contourTopRight, RETR_EXTERNAL, CHAIN_APPROX_SIMPLE);
-            drawContours(saveimg, contourTopRight, -1, Scalar(255, 0, 0), 3, LINE_8, noArray(), INT_MAX, Point(210,0));
-            imshow("RIGHT in do while", saveimg);
-            waitKey(1);
-            printf("%d", contourTopRight.size());
-            fleft = 30;
-            fright = -30;
+        printf("right\n");
+        if(!dinmiddle){
+            fright = 50;
+            fleft = 50;
             loop();
-
-            if (contourTopRight.size()){
-                vector<Point> lineTopRight = *max_element(contourTopRight.begin(), contourTopRight.end(), contour_cmp);
-                contourarea = contourArea(lineTopRight);
-            }
-        } while(contourarea < (50*50/2));
-
-        contourarea = 0;
-/*
-        do {
-            Mat newthreshimg = green_image_proccessing("topLeft");
-            findContours(newthreshimg, contourTopLeft, RETR_EXTERNAL, CHAIN_APPROX_SIMPLE);
-            drawContours(saveimg, contourTopLeft, -1, Scalar(255, 0, 0), 3, LINE_8, noArray(), INT_MAX, Point(50,0));
-            imshow("LEFT in do while", saveimg);
-            waitKey(1);
-            printf("%d", contourTopLeft.size());
-            fleft = 30;
-            fright = -30;
-            loop();
-
-            if (contourTopLeft.size()){
-                vector<Point> lineTopLeft = *max_element(contourTopLeft.begin(), contourTopLeft.end(), contour_cmp);
-                contourarea = contourArea(lineTopLeft);
-            }
-        } while(contourarea < (50*50/2));*/
+        }
+        else{
+            result = 2;
+        }
 	}
 	else {
 		result = 0;

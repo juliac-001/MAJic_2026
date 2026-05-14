@@ -29,6 +29,6 @@ void obstacle_detection();
 void tcaselect(uint8_t i);
 void stopMotors();
 void straight();
-void left();
-void right();
+void left(int turndegree);
+void right(int turndegree);
 void doublegreen();
