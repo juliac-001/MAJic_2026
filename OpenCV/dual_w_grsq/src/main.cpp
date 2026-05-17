@@ -27,14 +27,11 @@ using namespace cv;
 #define BAUDRATE B115200
 #define MODEMDEVICE "/dev/ttyAMA0"
 
-#include "motorfunctions.h"
-
-extern int fleft, bleft, fright, bright;
 int errors, spdChange;
 
-float kp = 1.4;
+float kp = 1.3;
 int targetValue = 160;
-int targetSpeed = 25;
+int targetSpeed = 15;
 int result = 0;
 
 int marr[2] = {0};
@@ -47,7 +44,7 @@ bool backwards = true;
 
 int rx_length = 0;
 int uart0_filestream = -1;
-lccv::PiCamera cam;
+lccv::PiCamera cameras[2];
 
 Point noffset (0, 0);
 Point loffset (0, 50);
@@ -59,26 +56,33 @@ int rightSize = 0;
 
 int threshnumber = 180;
 
+int fleft, bleft, fright, bright;
+
+void motorZero() {
+    fleft = 0;
+    bleft = 0;
+    fright = 0;
+    bright = 0;
+}
+
 Mat green_image_proccessing(string area){
     Mat img;
 
-    if (!cam.getVideoFrame(img, 99999999))
+    if (!cameras[0].getVideoFrame(img, 99999999))
     {
         printf("!ERROR!\n");
     }
 
     resize(img, img, Size(320, 240));
-    flip(img, img, -1);
+    //flip(img, img, -1);
 
 
     dilate(img, img, getStructuringElement(MORPH_RECT, Size(21, 21)));
     erode(img, img, getStructuringElement(MORPH_RECT, Size(21, 21)));
 
     cvtColor(img, img, COLOR_BGR2GRAY); 
-		
-	GaussianBlur(img, img, Size(5,5), 0, 0);
-		
-	threshold(img, img, 130, 255, THRESH_BINARY_INV);	
+    GaussianBlur(img, img, Size(5,5), 0, 0);
+    threshold(img, img, 130, 255, THRESH_BINARY_INV);	
 
     if(area == "topRight"){
         img = img(Rect(210, 0, 59, 59));
@@ -93,7 +97,7 @@ Mat green_image_proccessing(string area){
 Mat thresh_image_proccessing(){
     Mat img;
 
-    if (!cam.getVideoFrame(img, 99999999))
+    if (!cameras[0].getVideoFrame(img, 99999999))
     {
         printf("!ERROR!\n");
     }
@@ -106,7 +110,7 @@ Mat thresh_image_proccessing(){
 
     cvtColor(img, img, COLOR_BGR2HSV);
     medianBlur(img, img, 5);
-    inRange(img, Scalar(0, 0, 0), Scalar(180, 126, threshnumber), img);
+    inRange(img, Scalar(0, 0, 0), Scalar(180, 115, 115), img);
 
     return img;
 }
@@ -122,35 +126,36 @@ int* getCenter(vector<Point> line, Mat img, Point offset = noffset, bool drawCir
     marr[0] = m.m10 / m.m00; //cx
     marr[1] = m.m01 / m.m00; //cyp
 
-    if(drawCircle)
+    if(drawCircle) {
         circle(img, Point(marr[0] + offset.x, marr[1] + offset.y), 6, Scalar(255, 127, 255), -1);
+    }
 
     return marr;
 }
 
 void PID(vector<vector<Point>> contours, Mat img, int direction = 1)
 {
-	vector<Point> line;
-	if ((int)contours.size() > 0) {
-    	line = *max_element(contours.begin(), contours.end(), contour_cmp);
-
-         cout << "countoursize: " << contourArea(line) << endl;
-
-        int cx = getCenter(line, img)[0];
-        int cy = getCenter(line, img)[1];
-
-        imshow("PIDimg", img);
-
-        errors = targetValue - cx;
-        spdChange = errors * kp;
-        fleft = direction * (targetSpeed - spdChange);
-        fright = direction * (targetSpeed + spdChange);
-	}
+    vector<Point> line;
+    if ((int)contours.size() > 0) {
+	line = *max_element(contours.begin(), contours.end(), contour_cmp);
+    
+	 cout << "countoursize: " << contourArea(line) << endl;
+    
+	int cx = getCenter(line, img)[0];
+	int cy = getCenter(line, img)[1];
+    
+	//imshow("PIDimg", img);
+    
+	errors = targetValue - cx;
+	spdChange = errors * kp;
+	fleft = 1 * (targetSpeed - spdChange);
+	fright = 1 * (targetSpeed + spdChange);
+    }
 }
 
 void track(Point center)
 {
-	int cx = center.x;
+    int cx = center.x;
     int cy = center.y;
 
     errors = targetValue - cx;
@@ -167,7 +172,7 @@ void loop()
 
 	if (stopMotors == 1)
 	{
-		motorZero();
+	    motorZero();
 	}
 
 	sprintf(tx_buffer, "[%d %d %d]", fleft, fright, result);
@@ -175,143 +180,176 @@ void loop()
 
 	if (uart0_filestream != -1)
 	{
-		int count = 0;
-		count = write(uart0_filestream, &tx_buffer[0], strlen(tx_buffer)); // Filestream, bytes to write, number of bytes to write
-		if (count < 0)
-		{
-			printf("uart: %d\n", uart0_filestream);
-			printf("UART TX error\n");
-		}
+	    int count = 0;
+	    count = write(uart0_filestream, &tx_buffer[0], strlen(tx_buffer)); // Filestream, bytes to write, number of bytes to write
+	    if (count < 0)
+	    {
+		printf("uart: %d\n", uart0_filestream);
+		printf("UART TX error\n");
+	    }
 	}
 }
 
 int greenSquare(Mat img) {
-	Mat hsvimg = img.clone();
-	Mat saveimg = img.clone();
+    Mat hsvimg = img.clone();
+    Mat saveimg = img.clone();
 
     dilate(img, img, getStructuringElement(MORPH_RECT, Size(21, 21)));
     erode(img, img, getStructuringElement(MORPH_RECT, Size(21, 21)));
 	
-	cvtColor(img, img, COLOR_BGR2GRAY); 
-		
-	GaussianBlur(img, img, Size(5,5), 0, 0);
-		
-	threshold(img, img, threshnumber, 255, THRESH_BINARY_INV);	
-		
-	Mat thresh = img.clone();
-	imshow("greensquarethresh", thresh);
-		
-	vector<vector<Point>> contours;
-	vector<vector<Point>> greenSquares;
-	findContours(thresh, contours, RETR_EXTERNAL, CHAIN_APPROX_SIMPLE);
-	
-	cvtColor(hsvimg, hsvimg, COLOR_BGR2HSV);
+    cvtColor(img, img, COLOR_BGR2GRAY); 
+	    
+    GaussianBlur(img, img, Size(5,5), 0, 0);
+	    
+    threshold(img, img, threshnumber, 255, THRESH_BINARY_INV);	
+	    
+    Mat thresh = img.clone();
+    //imshow("greensquarethresh", thresh);
+	    
+    vector<vector<Point>> contours;
+    vector<vector<Point>> greenSquares;
+    findContours(thresh, contours, RETR_EXTERNAL, CHAIN_APPROX_SIMPLE);
+    
+    cvtColor(hsvimg, hsvimg, COLOR_BGR2HSV);
 
-	inRange(hsvimg, Scalar (50, 55, 56), Scalar (110, 255, 255), hsvimg);
-	imshow("hsv", hsvimg);
+    inRange(hsvimg, Scalar (50, 55, 56), Scalar (110, 255, 255), hsvimg);
+    //imshow("hsv", hsvimg);
+    
+    findContours(hsvimg, greenSquares, RETR_EXTERNAL, CHAIN_APPROX_SIMPLE);
+    drawContours(saveimg, greenSquares, -1, Scalar (100, 255, 100), 3);	
+    //imshow("w/ GS contours", saveimg);
+    
+    int leftcount = 0;
+    int rightcount = 0;
+    bool inmiddle = false;
+    bool dinmiddle = false;
 	
-	findContours(hsvimg, greenSquares, RETR_EXTERNAL, CHAIN_APPROX_SIMPLE);
-	drawContours(saveimg, greenSquares, -1, Scalar (100, 255, 100), 3);	
+    for (int i = 0; i < (int)greenSquares.size(); i++) {
+	if (contourArea(greenSquares[i]) < 1500) {
+		continue;
+	}
+	
+	Rect box = boundingRect(greenSquares[i]);
+	
+	Point center(box.x+(box.width/2), box.y+(box.height/2));
+	Point above(box.x+(box.width/2), box.y-24);
+	Point right(box.x+(box.width) +24, box.y+(box.height/2));
+	Point below(box.x+(box.width/2), box.y+(box.height)+24);
+	Point left(box.x-24, box.y+(box.height/2));
+	
+	/*int abovecolor = thresh.at<unsigned char>(above);
+	int rightcolor = thresh.at<unsigned char>(right);
+	int belowcolor = thresh.at<unsigned char>(below);
+	int leftcolor = thresh.at<unsigned char>(left);*/
+	
+	auto sampleRegion = [&](Point p, int radius = 3) -> int {
+
+	    // Clamp ROI to image bounds
+	    int x1 = max(0, p.x - radius);
+	    int y1 = max(0, p.y - radius);
+
+	    int x2 = min(thresh.cols - 1, p.x + radius);
+	    int y2 = min(thresh.rows - 1, p.y + radius);
+
+	    int width = x2 - x1 + 1;
+	    int height = y2 - y1 + 1;
+
+	    // Safety check
+	    if (width <= 0 || height <= 0) {
+		return 0;
+	    }
+
+	    Rect roi(x1, y1, width, height);
+
+	    // Average brightness of region
+	    Scalar avg = mean(thresh(roi));
+
+	    // Return average grayscale value
+	    return (int)avg[0];
+	};
+
+	int abovecolor = sampleRegion(above);
+	int rightcolor = sampleRegion(right);
+	int belowcolor = sampleRegion(below);
+	int leftcolor = sampleRegion(left);
+
+	circle(saveimg, center, 3, Scalar(255,0,255), -1); //center - pink
+	circle(saveimg, above, 3, Scalar(0,0,255), -1); // above - red
+	circle(saveimg, right, 3, Scalar(0,255,255), -1); //right - yellow
+	circle(saveimg, below, 3, Scalar(255,0,0), -1); //below - blue
+	circle(saveimg, left, 3, Scalar(255,255, 0), -1); //left - teal
+	
+	printf("Right Color: %d", rightcolor);
+	printf("\tLeft Color: %d", leftcolor);
+	
 	imshow("w/ GS contours", saveimg);
 	
-	int leftcount = 0;
-	int rightcount = 0;
-	bool inmiddle = false;
-    bool dinmiddle = false;
-	int func = 0;
-
-    Point right;
-    Point left;
+	if (belowcolor > 200) {
+	    continue;
+	}
+	if(abovecolor > 200 && rightcolor > 200 && leftcolor < 200) {
+	    leftcount++;
+	}
+	if(abovecolor > 200 && leftcolor > 200 && rightcolor < 200) {
+	    rightcount++;
+	}
+	//else {
+	  //  result = 0;
+	//}
 	
-	for (int i = 0; i < (int)greenSquares.size(); i++) {
-		func = 0;
-		if (contourArea(greenSquares[i]) < 1500) {
-			continue;
-		}
-		
-		Rect box = boundingRect(greenSquares[i]);
-		
-		Point center(box.x+(box.width/2), box.y+(box.height/2));
-		Point above(box.x+(box.width/2), box.y-20);
-		right = Point(box.x+(box.width) +20, box.y+(box.height/2));
-		Point below(box.x+(box.width/2), box.y+(box.height)+20);
-		left = Point(box.x-20, box.y+(box.height/2));
-		
-		int abovecolor = thresh.at<unsigned char>(above);
-		int rightcolor = thresh.at<unsigned char>(right);
-		int belowcolor = thresh.at<unsigned char>(below);
-		int leftcolor = thresh.at<unsigned char>(left);
-
-		circle(saveimg, center, 3, Scalar(255,0,255), -1); //center - pink
-		circle(saveimg, above, 3, Scalar(0,0,255), -1); // above - red
-		circle(saveimg, right, 3, Scalar(0,255,255), -1); //right - yellow
-		circle(saveimg, below, 3, Scalar(255,0,0), -1); //below - blue
-		circle(saveimg, left, 3, Scalar(255,255, 0), -1); //left - teal
-		
-		imshow("w/ GS contours", saveimg);
-		
-		if (belowcolor == 255) {
-			continue;
-			result = 0;
-		}
-		else if(abovecolor == 255 && rightcolor == 255) {
-			leftcount++;
-		}
-		else if(abovecolor == 255 && leftcolor == 255) {
-			rightcount++;
-		}
-		else {
-			result = 0;
-		}
-		
-		if (center.y > 60) {
-			inmiddle = true;
-		}
-        if (center.y > 160) {
-			dinmiddle = true;
-		}
+	if (center.y > 130 && center.y < 200) {
+	    inmiddle = true;
 	}
+        if (center.y > 140) {
+	    dinmiddle = true;
+	}
+    }
+    
+    printf("Amount of Left Contours: %d\n", leftcount);
+    printf("Amount of Right Contours: %d\n", rightcount);
+    printf("In Middle: %d", inmiddle);
+    printf("Din Middle: %d", dinmiddle);
 		
-	if (leftcount && rightcount && dinmiddle) {
-		printf("doublegreen\n");
-        result = 3;
+    if (leftcount && rightcount && dinmiddle) {
+	printf("doublegreen\n");
+	result = 3;
+    }
+    else if(leftcount && inmiddle && (rightcount == 0)) {
+	printf("left\n");
+	/*if(!dinmiddle){
+	    fright = 10;
+	    fleft = 10;
+	    loop();
 	}
-	else if(leftcount && inmiddle) {
-        printf("left\n");
-        if(!dinmiddle){
-            fright = 50;
-            fleft = 50;
-            loop();
-        }
-        else{
-            result = 1;
-        }
+	else {*/
+	    result = 1;
+	//}
+    }
+    else if(rightcount && inmiddle && (leftcount == 0)) {
+	printf("right\n");
+	/*if(!dinmiddle){
+	    fright = 10;
+	    fleft = 10;
+	    loop();
 	}
-	else if(rightcount && inmiddle) {
-        printf("right\n");
-        if(!dinmiddle){
-            fright = 50;
-            fleft = 50;
-            loop();
-        }
-        else{
-            result = 2;
-        }
-	}
-	else {
-		result = 0;
-	}
+	else {*/
+	    result = 2;
+	//}
+    }
+    else {
+	result = 0;
+    }
 	
 }
 
 //---------------------------------------------------------------------------------------------
 void linetrace(Mat img)
 {
-    imshow("base image", img);
+    //imshow("base image", img);
 
     Mat thresh = img.clone();
     Mat landrimg = img.clone();
-	Mat saveimg = img.clone();
+    Mat saveimg = img.clone();
     Mat greenimg = img.clone();
 
     dilate(thresh, thresh, getStructuringElement(MORPH_RECT, Size(21, 21)));
@@ -319,9 +357,9 @@ void linetrace(Mat img)
 
     Mat PIDimg = thresh.clone();
 
-   	cvtColor(thresh, thresh, COLOR_BGR2HSV);
+    cvtColor(thresh, thresh, COLOR_BGR2HSV);
     medianBlur(thresh, thresh, 5);
-    inRange(thresh, Scalar(126, 0, 0), Scalar(180, 107, 151), thresh);
+    inRange(thresh, Scalar(0, 0, 0), Scalar(180, 115, 115), thresh);
     
     Mat topThresh = thresh(Rect(0, 0, 319, 49));
     Mat bottomThresh = thresh(Rect(boffset.x, boffset.y, 319, 49));
@@ -330,11 +368,8 @@ void linetrace(Mat img)
     Mat leftThresh = thresh(Rect(loffset.x, loffset.y, 99, 139));
     Mat rightThresh = thresh(Rect(roffset.x, roffset.y, 99, 139));
     Mat thinLeft = thresh(Rect(0, 0, 19, 239));
-    Mat thinRight = thresh(Rect(300, 0, 19, 239));
-    Mat invert;
-    bitwise_not(thresh, invert);
-    imshow("black_and_white_image", thresh);
-    imshow("white_and_black_image", invert);
+    Mat thinRight = thresh(Rect(300, 0, 19, 239));;
+    //imshow("black_and_white_image", thresh);
 
     vector<vector<Point>> contours;
     vector<vector<Point>> contourTop;
@@ -504,15 +539,19 @@ int main(void)
 
     printf("gp20 found");
 
-    Mat img;
-
-    cam.options->camera = 0;
-    cam.options->video_width = 1640; //320
-    cam.options->video_height = 1232; //240
-    cam.options->framerate = 30;
-    cam.options->verbose = true;
-
-    cam.startVideo();
+    Mat bottomimg;
+    Mat frontimg;
+    
+    int index = 0;
+    
+    for (auto& cam : cameras){
+	cam.options->camera = index++;
+	cam.options->video_width = 1640; //320
+	cam.options->video_height = 1232; //240
+	cam.options->framerate = 30;
+	cam.options->verbose = true;
+	cam.startVideo();
+    }
 
     namedWindow("firstWindow", WINDOW_NORMAL);
 
@@ -536,20 +575,25 @@ int main(void)
         printf("%i bytes read : %s\n", rx_length, rx_buffer);
     }
 
-    while (rx_length != 10)
+    while (rx_length != 11)
     {
-        if (!cam.getVideoFrame(img, 99999999))
+        if (!cameras[0].getVideoFrame(bottomimg, 99999999))
+        {
+            printf("!ERROR!\n");
+            break;
+        }
+	if (!cameras[1].getVideoFrame(frontimg, 99999999))
         {
             printf("!ERROR!\n");
             break;
         }
 
-        resize(img, img, Size(320, 240));
+        resize(bottomimg, bottomimg, Size(320, 240));
 
         //camera was flipped in new position
-        flip(img, img, -1);
+        //flip(bottomimg, bottomimg, -1);
         
-        linetrace(img);
+        linetrace(bottomimg);
 
         char key = (char)waitKey(1);
 
@@ -576,7 +620,8 @@ int main(void)
         printf("rxlength: %d\n", rx_length);
     }
 
-    cam.stopVideo();
+    cameras[0].stopVideo();
+    cameras[1].stopVideo();
     destroyAllWindows();
 
     return 0;
